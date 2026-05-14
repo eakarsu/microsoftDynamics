@@ -458,6 +458,122 @@ Be specific and actionable. Focus on strategies that drive wins.`;
   }
 });
 
+// AI Quote Generator
+app.post('/api/ai/quote-generate', auth, async (req, res) => {
+  try {
+    const { customer, products, terms } = req.body || {};
+    if (!customer || !Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ error: 'customer and products[] are required' });
+    }
+    const prompt = `You are a Dynamics 365 sales operations assistant. Generate a structured customer quote with sections:
+1. Quote Summary (customer, validity, total estimate)
+2. Line Items (formatted)
+3. Suggested Discount Strategy (justified)
+4. Risks / Caveats
+5. Recommended Follow-up Cadence
+
+Customer:
+${JSON.stringify(customer, null, 2)}
+
+Products:
+${JSON.stringify(products, null, 2)}
+
+Terms: ${terms || 'standard'}`;
+    const result = await callAI([{ role: 'user', content: prompt }]);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Customer Churn Prediction
+app.post('/api/ai/churn-prediction', auth, async (req, res) => {
+  try {
+    const accounts = await pool.query('SELECT * FROM accounts ORDER BY revenue DESC NULLS LAST LIMIT 50');
+    const prompt = `You are a customer success analyst. Identify which accounts in this portfolio are at risk of churn and recommend retention plays.
+
+Accounts (sample):
+${accounts.rows.map(a => `- ${a.name} | revenue=$${a.revenue || 0} | health=${a.health_score || 'unknown'} | last_contact=${a.last_contact || 'unknown'}`).join('\n')}
+
+Output JSON with: { atRisk: [{name, churnScore (0-1), drivers, retentionPlay}], summary, networkActions }.`;
+    const result = await callAI([{ role: 'user', content: prompt }]);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Workflow Recommender
+app.post('/api/ai/workflow-recommend', auth, async (req, res) => {
+  try {
+    const { businessProcess, painPoints } = req.body || {};
+    if (!businessProcess) return res.status(400).json({ error: 'businessProcess is required' });
+    const prompt = `You are a Dynamics 365 workflow architect. Propose an automation workflow for the described business process. Include trigger, steps, approvals, integrations, error handling, and KPIs.
+
+Business Process: ${businessProcess}
+Known Pain Points: ${JSON.stringify(painPoints || [])}`;
+    const result = await callAI([{ role: 'user', content: prompt }]);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Lead-to-Opportunity Conversion Advisor (audit backlog: medium "Lead-to-opportunity conversion automation")
+app.post('/api/ai/lead-conversion-advisor', auth, async (req, res) => {
+  try {
+    if (!process.env.OPENROUTER_API_KEY) {
+      return res.status(503).json({ error: { message: 'AI provider not configured (OPENROUTER_API_KEY missing).' } });
+    }
+    const { lead, criteria } = req.body || {};
+    let leadInfo = lead;
+    if (!leadInfo && req.body && req.body.leadId) {
+      try {
+        const r = await pool.query('SELECT * FROM leads WHERE id = $1', [req.body.leadId]);
+        leadInfo = r.rows[0];
+      } catch (_) {}
+    }
+    if (!leadInfo) return res.status(400).json({ error: 'lead or leadId is required' });
+    const prompt = `You are a Dynamics 365 sales advisor. Decide whether the following lead is ready to be converted into an opportunity, and if so, propose the opportunity skeleton.
+
+Lead:
+${JSON.stringify(leadInfo, null, 2)}
+
+Conversion Criteria (BANT-like): ${JSON.stringify(criteria || { budget: 'unknown', authority: 'unknown', need: 'unknown', timeline: 'unknown' })}
+
+Return JSON with: {convert_now: true|false, readiness_score: 0-100, gaps: [], suggested_opportunity: {name, estimated_amount, stage, probability, close_date_iso, products_to_propose, primary_contact}, next_actions: [], risks: []}.`;
+    const result = await callAI([{ role: 'user', content: prompt }]);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Workflow State-Machine Designer (audit backlog: high "Real workflow engine — state machine, approvals")
+app.post('/api/ai/workflow-state-machine', auth, async (req, res) => {
+  try {
+    if (!process.env.OPENROUTER_API_KEY) {
+      return res.status(503).json({ error: { message: 'AI provider not configured (OPENROUTER_API_KEY missing).' } });
+    }
+    const { processName, description, actors, approvalLevels } = req.body || {};
+    if (!processName) return res.status(400).json({ error: 'processName is required' });
+    const prompt = `You are a Dynamics 365 process architect. Design a state machine (with approval steps) for the described business process.
+
+Process: ${processName}
+Description: ${description || ''}
+Actors / Roles: ${JSON.stringify(actors || [])}
+Approval Levels: ${approvalLevels || 'auto-decide'}
+
+Return JSON with: {states: [{id,name,kind:"start|task|approval|wait|end",owner_role,description,sla_hours}], transitions: [{from,to,event,guard}], approvals: [{state_id,approver_role,escalation_after_hours}], notifications: [{state_id,channel,recipient_role,template}], kpis: [], example_happy_path: []}.`;
+    const result = await callAI([{ role: 'user', content: prompt }]);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.use('/api/entity-designer', require('./routes/entityDesigner')); app.use('/api/workflows', require('./routes/workflowEngine')); app.use('/api/connectors', require('./routes/connectors')); app.use('/api/record-copilot', require('./routes/recordCopilot')); app.use('/api/pipeline-forecast', require('./routes/pipelineForecast')); app.use('/api/dashboards', require('./routes/dashboards'));
+
 app.listen(PORT, () => {
   console.log(`🚀 Dynamics 365 API Server running on port ${PORT}`);
 });
