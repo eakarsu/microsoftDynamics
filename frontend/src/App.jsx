@@ -7,7 +7,8 @@ import ModulePage from './pages/ModulePage';
 import DetailPage from './pages/DetailPage';
 import AIInsights from './pages/AIInsights';
 import AIAdvanced from './pages/AIAdvanced';
-import { FiGrid, FiCpu, FiLogOut, FiMenu, FiX, FiChevronDown, FiChevronRight, FiUser, FiZap } from 'react-icons/fi';
+import CustomViewsPage from './pages/CustomViewsPage';
+import { FiGrid, FiCpu, FiLogOut, FiMenu, FiX, FiChevronDown, FiChevronRight, FiUser, FiZap, FiLayers } from 'react-icons/fi';
 
 function Layout({ user, onLogout, children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -94,6 +95,10 @@ function Layout({ user, onLogout, children }) {
               <FiZap size={18} />
               <span>AI Advanced</span>
             </Link>
+            <Link to="/custom-views" className={`sidebar-item ${isActive('/custom-views') ? 'active' : ''}`}>
+              <FiLayers size={18} />
+              <span>Dynamics Views</span>
+            </Link>
           </nav>
         </aside>
 
@@ -145,6 +150,7 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/ai-insights" element={<AIInsights />} />
         <Route path="/ai-advanced" element={<AIAdvanced />} />
+        <Route path="/custom-views" element={<CustomViewsPage />} />
         <Route path="/:moduleKey" element={<ModulePage />} />
         <Route path="/:moduleKey/:id" element={<DetailPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

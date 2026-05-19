@@ -573,6 +573,11 @@ Return JSON with: {states: [{id,name,kind:"start|task|approval|wait|end",owner_r
 });
 
 app.use('/api/entity-designer', require('./routes/entityDesigner')); app.use('/api/workflows', require('./routes/workflowEngine')); app.use('/api/connectors', require('./routes/connectors')); app.use('/api/record-copilot', require('./routes/recordCopilot')); app.use('/api/pipeline-forecast', require('./routes/pipelineForecast')); app.use('/api/dashboards', require('./routes/dashboards'));
+app.use('/api/custom-views', require('./routes/customViews'));
+
+app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'dynamics365', ts: Date.now() }));
+
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found', path: req.originalUrl }));
 
 app.listen(PORT, () => {
   console.log(`🚀 Dynamics 365 API Server running on port ${PORT}`);
