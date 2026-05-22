@@ -10,6 +10,11 @@ import AIAdvanced from './pages/AIAdvanced';
 import CustomViewsPage from './pages/CustomViewsPage';
 import { FiGrid, FiCpu, FiLogOut, FiMenu, FiX, FiChevronDown, FiChevronRight, FiUser, FiZap, FiLayers } from 'react-icons/fi';
 
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
+import TimelineView from './pages/TimelineView';
+
 function Layout({ user, onLogout, children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState({ Sales: true, Service: true, Marketing: true, Finance: true, Operations: true, HR: true, System: true });
@@ -138,6 +143,10 @@ export default function App() {
   if (!user) {
     return (
       <Routes>
+        <Route path="/insights/timeline" element={<TimelineView />} />
+        <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
+        <Route path="/codex/operations" element={<CodexOperationsFeature />} />
+
         <Route path="/login" element={<Login onLogin={handleLogin} />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
