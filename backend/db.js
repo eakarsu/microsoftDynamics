@@ -1,12 +1,12 @@
 const { Pool } = require('pg');
-require('dotenv').config({ path: '../.env' });
+const { databaseConfig } = require('./config');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+function createPool(env = process.env) {
+  const pool = new Pool(databaseConfig(env));
+  pool.on('error', (error) => {
+    console.error(JSON.stringify({ level: 'error', event: 'postgres_pool_error', message: error.message }));
+  });
+  return pool;
+}
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-});
-
-module.exports = pool;
+module.exports = { createPool };

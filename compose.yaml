@@ -1,0 +1,88 @@
+name: microsoft-dynamics-sales-core
+services:
+  database:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: dynamics
+      POSTGRES_USER: dynamics
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - dynamics-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dynamics -d dynamics"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks: [private]
+
+  migrate:
+    build: ./backend
+    command: ["node", "scripts/migrate.js"]
+    environment:
+      PGHOST: database
+      PGPORT: 5432
+      PGDATABASE: dynamics
+      PGUSER: dynamics
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    depends_on:
+      database:
+        condition: service_healthy
+    networks: [private]
+    restart: "no"
+
+  backend:
+    build: ./backend
+    environment:
+      PGHOST: database
+      PGPORT: 5432
+      PGDATABASE: dynamics
+      PGUSER: dynamics
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-microsoft-dynamics-sales-core}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-microsoft-dynamics-sales-console}
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: 4001
+      ALLOWED_ORIGINS: ${PUBLIC_APP_URL:?set PUBLIC_APP_URL}
+      TRUST_PROXY: "1"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4001/api/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [private]
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports: ["${FRONTEND_BIND_IP:-127.0.0.1}:${FRONTEND_PORT:-3000}:8080"]
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [private]
+    restart: unless-stopped
+
+networks:
+  private:
+    internal: true
+
+volumes:
+  dynamics-data:

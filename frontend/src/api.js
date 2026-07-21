@@ -1,79 +1,56 @@
-const API_BASE = '/api';
+const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
-function getHeaders() {
-  const token = localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+export function getToken() {
+  return sessionStorage.getItem('sales_core_token');
 }
 
-export async function login(email, password) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+export function clearSession() {
+  sessionStorage.removeItem('sales_core_token');
+}
+
+async function request(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${baseUrl}${path}`, { ...options, headers });
+  const body = await response.json().catch(() => ({}));
+  if (response.status === 401 && path !== '/api/auth/login') {
+    clearSession();
+    window.dispatchEvent(new Event('sales-core-auth-expired'));
+  }
+  if (!response.ok) {
+    const error = new Error(body.error?.message || `Request failed (${response.status})`);
+    error.code = body.error?.code;
+    error.details = body.error?.details;
+    error.status = response.status;
+    throw error;
+  }
+  return body;
+}
+
+export async function login(credentials) {
+  const body = await request('/api/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
+  sessionStorage.setItem('sales_core_token', body.token);
+  return body;
+}
+
+export const api = {
+  me: () => request('/api/auth/me'),
+  leads: () => request('/api/leads'),
+  opportunities: () => request('/api/opportunities'),
+  createLead: (lead) => request('/api/leads', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) throw new Error('Invalid credentials');
-  return res.json();
-}
-
-export async function fetchAll(module, search = '') {
-  const params = new URLSearchParams();
-  if (search) params.set('search', search);
-  params.set('order', 'desc');
-  const res = await fetch(`${API_BASE}/${module}?${params}`, { headers: getHeaders() });
-  if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
-  return res.json();
-}
-
-export async function fetchOne(module, id) {
-  const res = await fetch(`${API_BASE}/${module}/${id}`, { headers: getHeaders() });
-  if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
-  return res.json();
-}
-
-export async function createItem(module, data) {
-  const res = await fetch(`${API_BASE}/${module}`, {
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+    body: JSON.stringify(lead),
+  }),
+  qualifyLead: (leadId, assessment) => request(`/api/leads/${leadId}/qualify`, {
     method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify(data),
-  });
-  if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
-  return res.json();
-}
-
-export async function updateItem(module, id, data) {
-  const res = await fetch(`${API_BASE}/${module}/${id}`, {
-    method: 'PUT',
-    headers: getHeaders(),
-    body: JSON.stringify(data),
-  });
-  if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
-  return res.json();
-}
-
-export async function deleteItem(module, id) {
-  const res = await fetch(`${API_BASE}/${module}/${id}`, {
-    method: 'DELETE',
-    headers: getHeaders(),
-  });
-  if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
-  return res.json();
-}
-
-export async function fetchDashboard() {
-  const res = await fetch(`${API_BASE}/dashboard/stats`, { headers: getHeaders() });
-  if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
-  return res.json();
-}
-
-export async function callAI(endpoint, body = {}) {
-  const res = await fetch(`${API_BASE}/ai/${endpoint}`, {
+    body: JSON.stringify(assessment),
+  }),
+  convertLead: (leadId, expectedVersion, key = crypto.randomUUID()) => request(`/api/leads/${leadId}/convert`, {
     method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (res.status === 401) { localStorage.removeItem('token'); window.location.href = '/login'; return; }
-  return res.json();
-}
+    headers: { 'Idempotency-Key': key },
+    body: JSON.stringify({ expectedVersion }),
+  }),
+  verifyAudit: () => request('/api/audit-events/verify'),
+};

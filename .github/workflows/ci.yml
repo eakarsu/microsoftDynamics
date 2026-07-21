@@ -1,0 +1,62 @@
+name: sales-core-ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_DB: dynamics_sales_test
+          POSTGRES_USER: dynamics_test
+          POSTGRES_PASSWORD: integration-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dynamics_test -d dynamics_sales_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://dynamics_test:integration-only-password@127.0.0.1:5432/dynamics_sales_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.17.0
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - run: npm ci --prefix backend --ignore-scripts
+      - run: npm ci --prefix frontend --ignore-scripts
+      - run: npm --prefix backend run check
+      - name: Apply and replay checksum migrations
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: npm --prefix backend run migrate && npm --prefix backend run migrate && npm --prefix backend run migrate:check
+      - run: npm --prefix backend test
+      - run: npm --prefix frontend run build
+      - run: npm --prefix backend audit --audit-level=low
+      - run: npm --prefix frontend audit --audit-level=low
+      - run: bash -n start.sh scripts/*.sh
+      - name: Validate deployment topology
+        run: >-
+          POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+          JWT_SECRET="$(openssl rand -hex 32)"
+          PUBLIC_APP_URL=https://dynamics.example
+          docker compose config --quiet
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: docker build -t dynamics-sales-backend:test backend
+      - run: docker build -t dynamics-sales-frontend:test frontend

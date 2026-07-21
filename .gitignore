@@ -1,8 +1,7 @@
-# Environment / secrets
+# Secrets and machine-local configuration
 .env
 .env.*
 !.env.example
-!.env.sample
 *.pem
 *.key
 *.p12
@@ -10,84 +9,32 @@
 credentials.json
 secrets.json
 service-account*.json
-gcp-key*.json
-config.local.*
-*.local
+.npmrc
 
-# Node
+# Dependencies and build output
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-store/
-.yarn/cache/
-.yarn/install-state.gz
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-.venv/
-env/
-.env/
-*.egg-info/
-*.egg
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Build outputs
 dist/
 build/
-.next/
-out/
-.nuxt/
 .vite/
-.turbo/
+coverage/
+.nyc_output/
 *.log
+npm-debug.log*
 
-# OS / IDE
+# Runtime data and recovery artifacts
+*.sqlite
+*.sqlite3
+*.db
+backups/
+data/
+uploads/
+tmp/
+.cache/
+
+# Editor and OS files
 .DS_Store
 .idea/
 .vscode/
 Thumbs.db
 *.swp
 *.swo
-
-# Large data / uploads
-*.sqlite
-*.sqlite3
-*.db
-data/
-uploads/
-tmp/
-.cache/
-
-# Coverage
-coverage/
-.nyc_output/
-htmlcov/
-
-# --- secrets (auto-added) ---
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-**/credentials*.json
-**/serviceAccount*.json
-
-# --- secrets: never commit ---
-.env
-.env.*
-*.pem
-*.key
-*.p12
-*.pfx
-token.txt
-*.token
-.npmrc
-id_rsa*
-**/credentials*.json
-**/serviceAccount*.json
