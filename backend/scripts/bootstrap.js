@@ -27,17 +27,22 @@ async function main() {
     try {
       await client.query('BEGIN');
       await client.query("SELECT pg_advisory_xact_lock(hashtext('microsoft-dynamics-sales-core-bootstrap'))");
-      const existingUsers = await client.query('SELECT COUNT(*)::int AS count FROM users');
-      if (existingUsers.rows[0].count !== 0) throw new Error('Bootstrap refused: at least one user already exists');
-      const tenant = await client.query('INSERT INTO tenants (slug, name) VALUES ($1, $2) RETURNING id', [tenantSlug, tenantName]);
+      const tenant = await client.query(
+        'INSERT INTO tenants (slug, name) VALUES ($1, $2) ON CONFLICT(slug) DO UPDATE SET name=EXCLUDED.name RETURNING id',
+        [tenantSlug, tenantName],
+      );
       const tenantId = Number(tenant.rows[0].id);
       const passwordHash = await bcrypt.hash(password, 12);
       const user = await client.query(
-        "INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1,$2,$3,$4,'admin') RETURNING id",
+        `INSERT INTO users (tenant_id, email, password_hash, full_name, role, active)
+         VALUES ($1,$2,$3,$4,'admin',TRUE)
+         ON CONFLICT(tenant_id,email) DO UPDATE SET
+           password_hash=EXCLUDED.password_hash,full_name=EXCLUDED.full_name,role='admin',active=TRUE
+         RETURNING id`,
         [tenantId, adminEmail, passwordHash, adminName],
       );
       const userId = Number(user.rows[0].id);
-      await appendAudit(client, { tenantId, actorUserId: userId, action: 'tenant.bootstrapped', entityType: 'tenant', entityId: tenantId, details: { initialRole: 'admin' } });
+      await appendAudit(client, { tenantId, actorUserId: userId, action: 'runtime.admin_configured', entityType: 'tenant', entityId: tenantId, details: { role: 'admin' } });
       await client.query('COMMIT');
       console.log(JSON.stringify({ event: 'bootstrap_complete', tenantId, userId }));
     } catch (error) {

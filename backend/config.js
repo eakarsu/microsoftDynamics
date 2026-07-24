@@ -25,7 +25,7 @@ function databaseConfig(env = process.env) {
     ...connection,
     ssl: env.DATABASE_SSL === 'require' ? { rejectUnauthorized: true } : false,
     max: Number.parseInt(env.DATABASE_POOL_MAX || '10', 10),
-    connectionTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 30_000,
     idleTimeoutMillis: 30_000,
   };
 }
