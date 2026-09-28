@@ -41,7 +41,7 @@ export default function Login({ onLogin }) {
           >
             Auto Fill Demo Credentials
           </button>
-          <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+          <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign In'}</button>
         </form>
       </section>
     </main>
