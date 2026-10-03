@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import SectionSidebar from '../components/SectionSidebar';
 import { api } from '../api';
 
 const blankLead = { firstName: '', lastName: '', email: '', company: '', estimatedValue: '', notes: '' };
@@ -86,7 +87,13 @@ export default function Pipeline({ identity, onSignOut }) {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell codex-section-shell">
+      <SectionSidebar title="Sales Pipeline" items={[
+        { href: '#summary', label: 'Summary' }, { href: '#leads', label: 'Leads' },
+        { href: '#lead-detail', label: 'Lead Detail' }, { href: '#opportunities', label: 'Opportunities' },
+        { href: '#audit', label: 'Audit Chain' }, { href: '#create-lead', label: 'Create Lead' },
+      ]} />
+      <div className="codex-section-content">
       <header className="topbar">
         <div><p className="eyebrow">Supported workflow</p><h1>Lead qualification & conversion</h1></div>
         <div className="identity"><span>{identity.name}</span><small>{identity.role.replace('_', ' ')}</small><button className="secondary" onClick={onSignOut}>Sign out</button></div>
@@ -94,7 +101,7 @@ export default function Pipeline({ identity, onSignOut }) {
 
       <main className="workspace">
         {(error || notice) && <div className={error ? 'error-banner' : 'success-banner'} role="status">{error || notice}</div>}
-        <section className="metrics" aria-label="Pipeline summary">
+        <section className="metrics" id="summary" aria-label="Pipeline summary">
           <div><strong>{leads.length}</strong><span>Visible leads</span></div>
           <div><strong>{leads.filter((lead) => lead.status === 'qualified').length}</strong><span>Qualified</span></div>
           <div><strong>{opportunities.length}</strong><span>Opportunities</span></div>
@@ -102,7 +109,7 @@ export default function Pipeline({ identity, onSignOut }) {
         </section>
 
         <div className="columns">
-          <section className="panel">
+          <section className="panel" id="leads">
             <div className="panel-heading"><div><p className="eyebrow">Tenant scoped</p><h2>Leads</h2></div><span>{leads.length}</span></div>
             <div className="lead-list">
               {leads.map((lead) => (
@@ -115,7 +122,7 @@ export default function Pipeline({ identity, onSignOut }) {
             </div>
           </section>
 
-          <section className="panel detail-panel">
+          <section className="panel detail-panel" id="lead-detail">
             <div className="panel-heading"><div><p className="eyebrow">Optimistic versioning</p><h2>{selected ? `${selected.firstName} ${selected.lastName}` : 'Select a lead'}</h2></div>{selected && <span>v{selected.version}</span>}</div>
             {selected ? (
               <>
@@ -141,18 +148,18 @@ export default function Pipeline({ identity, onSignOut }) {
         </div>
 
         <div className="columns lower">
-          <section className="panel">
+          <section className="panel" id="opportunities">
             <div className="panel-heading"><div><p className="eyebrow">Idempotent transaction</p><h2>Opportunities</h2></div></div>
             <div className="table-wrap"><table><thead><tr><th>Name</th><th>Stage</th><th>Probability</th><th>Amount</th></tr></thead><tbody>{opportunities.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.stage}</td><td>{item.probability}%</td><td>{money(item.amount)}</td></tr>)}</tbody></table>{!opportunities.length && <p className="empty">Qualified conversions appear here.</p>}</div>
           </section>
 
-          <section className="panel audit-card">
+          <section className="panel audit-card" id="audit">
             <p className="eyebrow">Append-only evidence</p><h2>Audit chain</h2>
             {canVerifyAudit ? <><p>Verify every tenant event from its genesis hash through the latest mutation.</p><button className="secondary" disabled={busy} onClick={verifyAudit}>Verify chain</button>{auditValid !== null && <strong className={auditValid ? 'valid' : 'invalid'}>{auditValid ? 'Chain valid' : 'Chain invalid'}</strong>}</> : <p>Managers and administrators can verify the tenant audit chain.</p>}
           </section>
         </div>
 
-        <section className="panel create-panel">
+        <section className="panel create-panel" id="create-lead">
           <div><p className="eyebrow">Required idempotency</p><h2>Create lead</h2><p>Each submission carries a unique request key and is owned by the signed-in user.</p></div>
           <form onSubmit={createLead} className="lead-form">
             <label>First name<input required maxLength="100" value={leadForm.firstName} onChange={(event) => setLeadForm({ ...leadForm, firstName: event.target.value })} /></label>
@@ -165,6 +172,7 @@ export default function Pipeline({ identity, onSignOut }) {
           </form>
         </section>
       </main>
+      </div>
     </div>
   );
 }
