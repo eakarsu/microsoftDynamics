@@ -135,6 +135,17 @@ function createApp({ pool, config }) {
   const authenticate = auth(config, pool);
   app.get('/api/auth/me', authenticate, (req, res) => res.json({ user: req.user }));
 
+  app.get('/api/runtime-ai/sales-readiness', authenticate, asyncRoute(async (req, res) => {
+    const result = await pool.query(
+      `SELECT id, content, model, created_at
+       FROM runtime_ai_results
+       WHERE tenant_id = $1 AND user_id = $2 AND feature = 'sales-readiness'
+       ORDER BY created_at DESC, id DESC LIMIT 20`,
+      [req.user.tenantId, req.user.id],
+    );
+    return res.json({ data: result.rows.map((row) => ({ ...row, provider: 'openrouter' })) });
+  }));
+
   app.post('/api/runtime-ai/sales-readiness', authenticate, asyncRoute(async (req, res) => {
     const prompt = text(req.body?.prompt, 'prompt', { min: 1, max: 8000 });
     const apiKey = process.env.OPENROUTER_API_KEY;

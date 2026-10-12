@@ -54,3 +54,6 @@ export const api = {
   }),
   verifyAudit: () => request('/api/audit-events/verify'),
 };
+
+export const nativeAdvice=(endpoint,body,options={})=>request(endpoint,{...options,method:'POST',body:JSON.stringify(body)});
+export const nativeAdviceHistory=(endpoint)=>request(endpoint);

@@ -1,3 +1,4 @@
+import NativeAIReadiness from './pages/NativeAIReadiness';
 import React, { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { api, clearSession, getToken } from './api';
@@ -39,7 +40,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={signedIn ? <Navigate to="/pipeline" replace /> : <Login onLogin={setIdentity} />} />
-      <Route path="/pipeline" element={signedIn ? <Pipeline identity={identity} onSignOut={signOut} /> : <Navigate to="/login" replace />} />
+      <Route path="/pipeline" element={signedIn ? <><nav><a href="#ai-readiness">AI workspace</a></nav><Pipeline identity={identity} onSignOut={signOut} /><NativeAIReadiness/></> : <Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to={signedIn ? '/pipeline' : '/login'} replace />} />
     </Routes>
   );

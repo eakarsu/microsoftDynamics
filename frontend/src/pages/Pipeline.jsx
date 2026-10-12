@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SectionSidebar from '../components/SectionSidebar';
+import RecordDialog from '../components/RecordDialog';
 import { api } from '../api';
 
 const blankLead = { firstName: '', lastName: '', email: '', company: '', estimatedValue: '', notes: '' };
@@ -19,6 +20,7 @@ export default function Pipeline({ identity, onSignOut }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
 
   const selected = useMemo(() => leads.find((lead) => lead.id === selectedId) || null, [leads, selectedId]);
   const canVerifyAudit = identity.role === 'manager' || identity.role === 'admin';
@@ -150,7 +152,7 @@ export default function Pipeline({ identity, onSignOut }) {
         <div className="columns lower">
           <section className="panel" id="opportunities">
             <div className="panel-heading"><div><p className="eyebrow">Idempotent transaction</p><h2>Opportunities</h2></div></div>
-            <div className="table-wrap"><table><thead><tr><th>Name</th><th>Stage</th><th>Probability</th><th>Amount</th></tr></thead><tbody>{opportunities.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.stage}</td><td>{item.probability}%</td><td>{money(item.amount)}</td></tr>)}</tbody></table>{!opportunities.length && <p className="empty">Qualified conversions appear here.</p>}</div>
+            <div className="table-wrap"><table><thead><tr><th>Name</th><th>Stage</th><th>Probability</th><th>Amount</th></tr></thead><tbody>{opportunities.map((item) => <tr key={item.id} tabIndex={0} role="button" aria-label={`Open opportunity ${item.name}`} style={{ cursor: 'pointer' }} onClick={() => setSelectedOpportunity(item)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedOpportunity(item); } }}><td>{item.name}</td><td>{item.stage}</td><td>{item.probability}%</td><td>{money(item.amount)}</td></tr>)}</tbody></table>{!opportunities.length && <p className="empty">Qualified conversions appear here.</p>}</div>
           </section>
 
           <section className="panel audit-card" id="audit">
@@ -172,6 +174,23 @@ export default function Pipeline({ identity, onSignOut }) {
           </form>
         </section>
       </main>
+      {selectedOpportunity && <RecordDialog
+        title={selectedOpportunity.name}
+        item={selectedOpportunity}
+        onClose={() => setSelectedOpportunity(null)}
+        deleteLabel="Delete"
+        deleteWarning="This governed workflow keeps qualified conversions immutable."
+        permissionsNote="Opportunities are immutable in this governed workflow; no update or delete endpoint is exposed."
+        fields={[
+          { key: 'name' },
+          { key: 'stage' },
+          { key: 'probability', label: 'Probability' },
+          { key: 'amount' },
+          { key: 'id', editable: false },
+          { key: 'leadId', label: 'Lead', editable: false },
+          { key: 'createdAt', label: 'Created', editable: false }
+        ]}
+      />}
       </div>
     </div>
   );
