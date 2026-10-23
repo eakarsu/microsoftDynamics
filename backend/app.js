@@ -19,6 +19,8 @@ const {
 } = require('./domain');
 const { migrationStatus } = require('./migrations');
 const { auth, requireRole } = require('./middleware/auth');
+const wave1b = require('./wave1b');
+const taskStore = wave1b.createTaskStore();
 
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
@@ -100,6 +102,7 @@ function createApp({ pool, config }) {
   }));
   app.use(express.json({ limit: '64kb', strict: true }));
 
+  app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
   app.get('/api/health/live', (_req, res) => res.json({ status: 'ok', service: 'sales-core' }));
   app.get('/api/health/ready', asyncRoute(async (_req, res) => {
     await pool.query('SELECT 1');
@@ -274,11 +277,59 @@ function createApp({ pool, config }) {
     const values = [req.user.tenantId, ...owner.values];
     let where = `tenant_id = $1${owner.clause}`;
     if (status) { values.push(status); where += ` AND status = $${values.length}`; }
+    const search = wave1b.leadSearchClause(req.query.search, values.length + 1);
+    if (search) { values.push(search.value); where += search.clause; }
     if (after) { values.push(after); where += ` AND id < $${values.length}`; }
     values.push(limit);
     const result = await pool.query(`SELECT * FROM leads WHERE ${where} ORDER BY id DESC LIMIT $${values.length}`, values);
     return res.json({ data: result.rows.map(toLead), nextAfter: result.rows.length === limit ? Number(result.rows.at(-1).id) : null });
   }));
+
+  app.get('/api/leads/export', authenticate, asyncRoute(async (req, res) => {
+    const owner = ownershipSql(req.user, 2);
+    const values = [req.user.tenantId, ...owner.values];
+    let where = `tenant_id = $1${owner.clause}`;
+    const search = wave1b.leadSearchClause(req.query.search, values.length + 1);
+    if (search) { values.push(search.value); where += search.clause; }
+    if (req.query.status) { values.push(req.query.status); where += ` AND status = $${values.length}`; }
+    const result = await pool.query(`SELECT * FROM leads WHERE ${where} ORDER BY id DESC LIMIT 1000`, values);
+    const leads = result.rows.map(toLead);
+    if (String(req.query.format || 'json').toLowerCase() === 'csv') { res.setHeader('Content-Type', 'text/csv'); res.setHeader('Content-Disposition', 'attachment; filename="leads.csv"'); return res.send(wave1b.toCsv(leads, wave1b.LEAD_COLUMNS)); }
+    return res.json({ data: leads, total: leads.length });
+  }));
+
+  app.get('/api/tasks', authenticate, (req, res) => res.json({ data: taskStore.list(req.user.id, req.query) }));
+  app.post('/api/tasks', authenticate, (req, res) => { try { return res.status(201).json({ task: taskStore.create(req.user.id, req.body || {}) }); } catch (e) { return res.status(e.status || 400).json({ error: { code: e.code || 'VALIDATION_ERROR', message: e.message } }); } });
+  app.patch('/api/tasks/:id', authenticate, (req, res) => { try { const task = taskStore.update(req.user.id, req.params.id, req.body || {}); return task ? res.json({ task }) : res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } }); } catch (e) { return res.status(e.status || 400).json({ error: { code: e.code || 'VALIDATION_ERROR', message: e.message } }); } });
+
+  async function aiLeadFeature(req, feature, fallbackFn) {
+    const lead = toLead(await loadLead(pool, req.user, parseId(req.body?.leadId, 'leadId')));
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY; const model = process.env.OPENROUTER_MODEL || process.env.OPENAI_MODEL || (process.env.OPENROUTER_API_KEY ? 'anthropic/claude-3-5-sonnet-20241022' : 'gpt-4o-mini'); const baseUrl = process.env.OPENROUTER_BASE_URL || (process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
+    if (!apiKey) return fallbackFn(lead);
+    try {
+      const r = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, temperature: 0.2, messages: [{ role: 'system', content: `Return ONLY JSON {summary:string, findings:string[], recommendations:string[], metrics:object} for sales feature ${feature}. Preserve false/0 values.` }, { role: 'user', content: JSON.stringify(lead) }] }), signal: AbortSignal.timeout(60000) });
+      if (!r.ok) return fallbackFn(lead);
+      const p = await r.json(); const parsed = JSON.parse(String(p.choices?.[0]?.message?.content || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+      return { provider: 'openrouter', aiGenerated: true, model, feature, sections: parsed };
+    } catch (_) { return fallbackFn(lead); }
+  }
+  async function aiPipelineHealth(req) {
+    const owner = ownershipSql(req.user, 2);
+    const values = [req.user.tenantId, ...owner.values];
+    const result = await pool.query(`SELECT * FROM leads WHERE tenant_id = $1${owner.clause} ORDER BY id DESC LIMIT 1000`, values);
+    const fallback = wave1b.pipelineHealth(result.rows.map(toLead));
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY; const model = process.env.OPENROUTER_MODEL || process.env.OPENAI_MODEL || (process.env.OPENROUTER_API_KEY ? 'anthropic/claude-3-5-sonnet-20241022' : 'gpt-4o-mini'); const baseUrl = process.env.OPENROUTER_BASE_URL || (process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
+    if (!apiKey) return fallback;
+    try {
+      const r = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, temperature: 0.2, messages: [{ role: 'system', content: 'Return ONLY JSON {summary:string, findings:string[], recommendations:string[], metrics:object} for sales feature pipeline-health. Preserve false/0 values.' }, { role: 'user', content: JSON.stringify(fallback.sections).slice(0, 8000) }] }), signal: AbortSignal.timeout(60000) });
+      if (!r.ok) return fallback;
+      const p = await r.json(); const parsed = JSON.parse(String(p.choices?.[0]?.message?.content || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+      return { provider: 'openrouter', aiGenerated: true, model, feature: 'pipeline-health', sections: parsed };
+    } catch (_) { return fallback; }
+  }
+  app.post('/api/runtime-ai/pipeline-health', authenticate, asyncRoute(async (req, res) => res.json(await aiPipelineHealth(req))));
+  app.post('/api/runtime-ai/lead-summary', authenticate, asyncRoute(async (req, res) => res.json(await aiLeadFeature(req, 'lead-summary', wave1b.leadSummary))));
+  app.post('/api/runtime-ai/next-action', authenticate, asyncRoute(async (req, res) => res.json(await aiLeadFeature(req, 'next-action', wave1b.nextAction))));
 
   app.get('/api/leads/:id', authenticate, asyncRoute(async (req, res) => {
     const lead = await loadLead(pool, req.user, parseId(req.params.id));

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SectionSidebar from '../components/SectionSidebar';
 import RecordDialog from '../components/RecordDialog';
 import { api } from '../api';
+import FeaturePackPanel from '../components/FeaturePackPanel';
 
 const blankLead = { firstName: '', lastName: '', email: '', company: '', estimatedValue: '', notes: '' };
 const blankAssessment = { budgetConfirmed: false, authorityIdentified: false, needDefined: false, timelineDays: '90', notes: '' };
@@ -103,6 +104,7 @@ export default function Pipeline({ identity, onSignOut }) {
 
       <main className="workspace">
         {(error || notice) && <div className={error ? 'error-banner' : 'success-banner'} role="status">{error || notice}</div>}
+        <FeaturePackPanel leads={leads} selectedId={selectedId} />
         <section className="metrics" id="summary" aria-label="Pipeline summary">
           <div><strong>{leads.length}</strong><span>Visible leads</span></div>
           <div><strong>{leads.filter((lead) => lead.status === 'qualified').length}</strong><span>Qualified</span></div>
@@ -113,6 +115,7 @@ export default function Pipeline({ identity, onSignOut }) {
         <div className="columns">
           <section className="panel" id="leads">
             <div className="panel-heading"><div><p className="eyebrow">Tenant scoped</p><h2>Leads</h2></div><span>{leads.length}</span></div>
+            <form onSubmit={(e) => { e.preventDefault(); api.leads(e.target.elements.search.value).then((r) => setLeads(r.data)).catch((err) => setError(err.message)); }}><input name="search" placeholder="Search leads…" aria-label="Search leads" /><button type="submit" className="secondary">Search</button></form>
             <div className="lead-list">
               {leads.map((lead) => (
                 <button key={lead.id} className={`lead-row ${selectedId === lead.id ? 'selected' : ''}`} onClick={() => setSelectedId(lead.id)}>

@@ -36,7 +36,7 @@ export async function login(credentials) {
 
 export const api = {
   me: () => request('/api/auth/me'),
-  leads: () => request('/api/leads'),
+  leads: (search = '') => request(`/api/leads${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   opportunities: () => request('/api/opportunities'),
   createLead: (lead) => request('/api/leads', {
     method: 'POST',

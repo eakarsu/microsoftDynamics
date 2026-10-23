@@ -1,22 +1,10 @@
 import React, { useState } from 'react';
 import { login } from '../api';
 
-export function demoCredentials(env) {
-  if (env.VITE_ENABLE_DEMO_CREDENTIAL_AUTOFILL !== 'true' || !env.VITE_DEMO_TENANT || !env.VITE_DEMO_EMAIL || !env.VITE_DEMO_PASSWORD) return null;
-  return { tenant: env.VITE_DEMO_TENANT, email: env.VITE_DEMO_EMAIL, password: env.VITE_DEMO_PASSWORD };
-}
-
-export function fillDemoCredentials(setForm, setError, credentials) {
-  if (!credentials) return;
-  setError('');
-  setForm(credentials);
-}
-
 export default function Login({ onLogin }) {
   const [form, setForm] = useState({ tenant: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const demo = demoCredentials(import.meta.env);
 
   async function submit(event) {
     event.preventDefault();
@@ -44,17 +32,8 @@ export default function Login({ onLogin }) {
           <label>Email<input required type="email" autoComplete="username" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
           <label>Password<input required type="password" autoComplete="current-password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label>
           {error && <div className="error-banner" role="alert">{error}</div>}
-          <button
-            type="button"
-            onClick={() => fillDemoCredentials(setForm, setError, demo)}
-            disabled={busy || !demo}
-            aria-label="Fill demo credentials"
-            style={{ width: '100%', marginBottom: '12px', padding: '10px 14px', borderRadius: '8px', border: '1px solid currentColor', background: 'transparent', cursor: 'pointer' }}
-          >
-            Fill demo credentials
-          </button>
-          {!demo && <p className="muted">Demo credentials are not configured for this local session.</p>}
           <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign In'}</button>
+        <button type="button" onClick={(e) => { e.preventDefault(); const f = e.currentTarget.closest('form'); const set = (el, v) => { if (!el) return; const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'); if (d && d.set) d.set.call(el, v); else el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }; set(f && f.querySelector('input[type="email"],input[name*="email" i]'), 'admin@demo.local'); set(f && f.querySelector('input[type="password"]'), 'Demo!23456'); }>Log In as Demo</button>
         </form>
       </section>
     </main>

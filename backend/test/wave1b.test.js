@@ -1,0 +1,8 @@
+'use strict';
+const test = require('node:test'); const assert = require('node:assert/strict');
+const { createTaskStore, toCsv, LEAD_COLUMNS, leadSearchClause, leadSummary, nextAction, pipelineHealth } = require('../wave1b');
+test('tasks owner-scoped create/list/update', () => { const s = createTaskStore(); const t = s.create('7', { title: 'Call lead' }); assert.equal(s.list('7').length, 1); assert.equal(s.list('8').length, 0); assert.equal(s.update('7', t.id, { status: 'done' }).status, 'done'); });
+test('lead search clause is parameterized', () => { const c = leadSearchClause(' acme ', 3); assert.match(c.clause, /\$3/); assert.equal(c.value, '%acme%'); assert.equal(leadSearchClause('  ', 1), null); });
+test('csv preserves 0/false and fallbacks labelled', () => { assert.match(toCsv([{ firstName: 'A,B', lastName: 'L', email: 'e', company: 'C', estimatedValue: 0, status: false, score: 0 }], LEAD_COLUMNS), /"A,B"/); const f = leadSummary({ firstName: 'A', lastName: 'L', company: 'C', status: 'new', score: 0, estimatedValue: 0 }); assert.equal(f.aiGenerated, false); assert.equal(f.sections.metrics.score, 0); assert.match(nextAction({ status: 'qualified' }).sections.recommendations[0], /Convert/); });
+
+test('pipeline health fallback counts new leads preserving 0/false', () => { const h = pipelineHealth([{ firstName: 'A', status: 'new', estimatedValue: 0, score: 0 }, { firstName: 'B', status: 'qualified', estimatedValue: 10 }]); assert.equal(h.aiGenerated, false); assert.equal(h.sections.metrics.totalValue, 10); assert.equal(h.sections.metrics.newLeads, 1); assert.equal(h.sections.metrics.hasNewLeads, true); assert.equal(pipelineHealth([]).sections.metrics.hasNewLeads, false); });
